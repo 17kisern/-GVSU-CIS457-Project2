@@ -1,1 +1,2 @@
-# GVSU-CIS457-Project2
+# GVSU-CIS457-Project1
+Python Socket FTP Server/Client
