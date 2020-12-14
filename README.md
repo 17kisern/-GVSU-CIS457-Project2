@@ -1,1 +1,1 @@
-# -GVSU-CIS457-Project2
+# GVSU-CIS457-Project2
