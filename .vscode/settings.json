@@ -11,5 +11,6 @@
     ],
     "python.formatting.autopep8Args": [
         "--max-line-length=400"
-    ]
+    ],
+    "python.pythonPath": "/bin/python3"
 }
