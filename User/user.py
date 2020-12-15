@@ -21,6 +21,7 @@ socketObject = socket.socket()              # Create a socket object
 # port = 60000                                # Reserve a port for your service.
 bufferSize = 1024
 
+
 def Connect(address, port: int):
     global connected
     global socketObject
@@ -31,10 +32,13 @@ def Connect(address, port: int):
 
         data = socketObject.recv(bufferSize)
         connectionStatus = data.decode("UTF-8")
+
+        # Make sure we were accepted (server hasn't hit limit)
         if(int(connectionStatus) != 200):
             raise ConnectionRefusedError
+        else:
+            print("\nSuccessfully connected to\nAddress: ", address, "\tPort: ", int(port))
 
-        print("\nSuccessfully connected to\nAddress: ", address, "\tPort: ", int(port))
         connected = True
     except ConnectionRefusedError:
         print("\Server has reached it's user capacity. Please try again later.")
@@ -45,6 +49,7 @@ def Connect(address, port: int):
         socketObject = socket.socket()
         connected = False
 
+# Disconnect from the central server
 def Disconnect(commandArgs):
     global connected
     global socketObject
@@ -60,15 +65,16 @@ def Disconnect(commandArgs):
         print("Failed to disconnect! Please try again")
     return
 
+# Ask server for available files
 def List(commandArgs):
     global socketObject
     global bufferSize
-    
+
     command = " "
     socketObject.send(command.join(commandArgs).encode("UTF-8"))
 
+    # Receiving List of Strings
     listOutput = ""
-
     reachedEOF = False
 
     while not reachedEOF:
@@ -83,16 +89,29 @@ def List(commandArgs):
             reachedEOF = True
             decodedString = decodedString[0:len(decodedString) - 1]
 
-        listOutput += data.decode("UTF-8")
+        listOutput += data.decode("utf-8")
         # print("Data Received: ", data.decode("utf-8"))
-    
+
     print(listOutput)
+
     return
 
+# Send our available files to the central server
+def RefreshServer(commandArgs):
+    # Send the server info about what files we have
+    socketObject.send(b"\nFiles from User: \n")
+    for fileFound in os.listdir("."):
+        joiner = ""
+        toSend = joiner.join([" - ", fileFound, "\n"])
+        print(toSend)
+        socketObject.send(toSend.encode("UTF-8"))
+    socketObject.send(b"\0")
+
+# Ask server to retrieve a requested file
 def Retrieve(commandArgs):
     global socketObject
     global bufferSize
-    
+
     command = " "
     socketObject.send(command.join(commandArgs).encode("UTF-8"))
 
@@ -106,7 +125,6 @@ def Retrieve(commandArgs):
         print("Error in downloading file")
         return
 
-        
     try:
         joiner = ""
         receivedFile = open(commandArgs[1], 'wb')
@@ -138,6 +156,7 @@ def Retrieve(commandArgs):
     print("Successfully downloaded and saved: ", commandArgs[1])
     return
 
+# Send a requested file
 def Store(commandArgs):
     global socketObject
     global bufferSize
@@ -149,7 +168,7 @@ def Store(commandArgs):
     except:
         print("Failed to open file: ", fileName)
         return
-    
+
     command = " "
     socketObject.send(command.join(commandArgs).encode("UTF-8"))
 
@@ -161,7 +180,7 @@ def Store(commandArgs):
 
         # Reading in the next chunk of data
         fileInBytes = fileItself.read(bufferSize)
-        
+
     print("Sent: ", commandArgs[1])
 
     # Let the client know we're done sending the file
@@ -169,12 +188,14 @@ def Store(commandArgs):
     fileItself.close()
     return
 
+# Shutdown the server
 def Shutdown_Server(commandArgs):
     global socketObject
 
     command = " "
     socketObject.send(command.join(commandArgs).encode("UTF-8"))
     return
+
 
 def Main():
     print("You must first connect to a server before issuing any commands.")
@@ -218,12 +239,11 @@ def Main():
             print("Invalid Command. Please try again.")
             continue
 
-
         # socketObject.send(userInput.encode('UTF-8'))
-
 
         # socketObject.close()
         # print("Connection with Server Closed")
+
 
 Main()
 print("Program Closing")
