@@ -1,3 +1,5 @@
+import os
+from os import path
 import socket                               # Import socket module
 
 """
@@ -38,8 +40,8 @@ def Connect(address, port: int):
             raise ConnectionRefusedError
         else:
             print("\nSuccessfully connected to\nAddress: ", address, "\tPort: ", int(port))
-
         connected = True
+
     except ConnectionRefusedError:
         print("\Server has reached it's user capacity. Please try again later.")
         socketObject = socket.socket()
@@ -103,7 +105,7 @@ def RefreshServer(commandArgs):
     for fileFound in os.listdir("."):
         joiner = ""
         toSend = joiner.join([" - ", fileFound, "\n"])
-        print(toSend)
+        # print(toSend)
         socketObject.send(toSend.encode("UTF-8"))
     socketObject.send(b"\0")
 
@@ -209,8 +211,10 @@ def Main():
             if connected:
                 Disconnect(commandArgs)
                 Connect(commandArgs[1], commandArgs[2])
+                RefreshServer(commandArgs)
             else:
                 Connect(commandArgs[1], commandArgs[2])
+                RefreshServer(commandArgs)
             continue
         else:
             if not connected:
