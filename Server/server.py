@@ -7,7 +7,6 @@ port = 60000                    # Reserve a port for your service.
 maxConnections = 5
 bufferSize = 1024
 queueShutdown = False
-activeConnections = []
 usersTable = {}
 filesTable = {}
 
@@ -72,7 +71,6 @@ def RefreshUser(connection, commandArgs):
             decodedString = decodedString[0:len(decodedString) - 1]
         
         # Parse info about this specific file
-        print(decodedString)
         fileInfo = decodedString.split("|")
         fileName = fileInfo[0]
         fileDescription = fileInfo[1]
@@ -161,18 +159,17 @@ def ShutdownConnection(connection):
     connectionSocket = connection[0]
 
     print("[", connectionAddress, "] Ending Connection")
-    usersTable.pop(connectionAddress)
+    usersTable.pop(connection)
 
     # For every send from one device, we need to have another device listening otherwise the program will hang
     connectionSocket.close()
-    activeConnections.remove(connection)
 
 # End all connections and shutdown the server
 def ShutdownServer():
     global activeConnections
     global queueShutdown
 
-    for connection in activeConnections:
+    for connection in usersTable:
         ShutdownConnection(connection)
     queueShutdown = True
     return
@@ -184,7 +181,17 @@ async def ManageConnection(connection):
     connectionAddress = connection[1]
     connectionSocket = connection[0]
     print("[", connectionAddress, "] Received Connection")
-    usersTable[connectionAddress] = None
+
+    # Receiving the user's UserName
+    print("[", connectionAddress, "]", "Waiting on User's login info")
+    username = connectionSocket.recv(bufferSize)
+    # Receiving the user's HostName
+    hostname = connectionSocket.recv(bufferSize)
+    # Receiving the user's InternetSpeed
+    internetSpeed = connectionSocket.recv(bufferSize)
+
+    # Saving user into our table
+    usersTable[connection] = (username, hostname, internetSpeed)
 
     # Get the files available on the user's system
     RefreshUser(connection, "REFRESH_USER_FILES")
@@ -227,6 +234,7 @@ async def ManageConnection(connection):
 
 def Main():
     global activeConnections
+    global bufferSize
 
     # Create a socket object
     openSocket = socket.socket()
@@ -247,9 +255,9 @@ def Main():
         print("Awaiting Connection")
         if not queueShutdown:
             tupleboi = openSocket.accept()
-            if(len(activeConnections) < maxConnections):
+            if(len(usersTable) < maxConnections):
+                # Telling user they've been approved to connect
                 tupleboi[0].send(b"200")
-                activeConnections.append(tupleboi)
                 asyncio.run(ManageConnection(tupleboi))
             else:
                 tupleboi[0].send(b"300")
