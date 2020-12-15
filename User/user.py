@@ -99,14 +99,20 @@ def List(commandArgs):
     return
 
 # Send our available files to the central server
-def RefreshServer(commandArgs):
-    # Send the server info about what files we have
-    socketObject.send(b"\nFiles from User: \n")
+def RefreshServer(commandArgs=[]):
+
+    # If this is the initial connection, we don't need to inform the Server we're sending files, as it's already expecting them
+    if(not commandArgs):
+        command = " "
+        socketObject.send(command.join(commandArgs).encode("UTF-8"))
+
+    # Gather descriptions for each file we have, and tell the server about them
     for fileFound in os.listdir("."):
-        joiner = ""
-        toSend = joiner.join([" - ", fileFound, "\n"])
-        # print(toSend)
-        socketObject.send(toSend.encode("UTF-8"))
+        descriptionPrompt = "".join(["\nDescription [", fileFound, "]: "])
+        fileDescription = input(descriptionPrompt)
+        payload = "|".join([fileFound, fileDescription])
+        socketObject.send(payload.encode("UTF-8"))
+    # Tell the server we're done
     socketObject.send(b"\0")
 
 # Ask server to retrieve a requested file
@@ -211,10 +217,10 @@ def Main():
             if connected:
                 Disconnect(commandArgs)
                 Connect(commandArgs[1], commandArgs[2])
-                RefreshServer(commandArgs)
+                RefreshServer()
             else:
                 Connect(commandArgs[1], commandArgs[2])
-                RefreshServer(commandArgs)
+                RefreshServer()
             continue
         else:
             if not connected:
