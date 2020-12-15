@@ -1,6 +1,6 @@
 {
     "python.linting.pylintEnabled": true,
-    "python.linting.enabled": false,
+    "python.linting.enabled": true,
     "python.linting.mypyEnabled": false,
     "python.linting.banditEnabled": false,
     "python.linting.pylamaEnabled": false,
@@ -12,5 +12,6 @@
     "python.formatting.autopep8Args": [
         "--max-line-length=400"
     ],
-    "python.pythonPath": "/bin/python3"
+    "python.pythonPath": "/home/stephen/.pyenv/shims/python",
+    "python.linting.pydocstyleEnabled": false
 }

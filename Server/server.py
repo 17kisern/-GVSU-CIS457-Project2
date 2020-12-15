@@ -8,6 +8,8 @@ maxConnections = 5
 bufferSize = 1024
 queueShutdown = False
 activeConnections = []
+usersTable = {}
+filesTable = {}
 
 """
 
@@ -25,7 +27,7 @@ asyncio is just a library that allows us to run parallel operations without stre
 
 """
 
-
+# Send a list of all available files to a given user
 def List(connection, commandArgs):
     global bufferSize
 
@@ -41,7 +43,50 @@ def List(connection, commandArgs):
     connectionSocket.send(b"\0")
     return
 
+# Receives a list of all the available files associated with a given user
+def RefreshUser(connection, commandArgs):
+    global bufferSize
 
+    connectionAddress = connection[1]
+    connectionSocket = connection[0]
+
+    # Receiving multiple Strings
+    debugString = ""
+    reachedEOF = False
+
+    print("[", connectionAddress, "]", "Receiving User's FileTable")
+
+    while not reachedEOF:
+        # Receiving data in 1 KB chunks
+        data = connectionSocket.recv(bufferSize)
+        if(not data):
+            reachedEOF = True
+            break
+
+        # If there was no data in the latest chunk, then break out of our loop
+        decodedString = data.decode("utf-8")
+
+        # If this is our final payload, then make sure this is our last iteration of info
+        if(len(decodedString) >= 2 and decodedString[len(decodedString) - 1: len(decodedString)] == "\0"):
+            reachedEOF = True
+            decodedString = decodedString[0:len(decodedString) - 1]
+        
+        # Parse info about this specific file
+        print(decodedString)
+        fileInfo = decodedString.split("|")
+        fileName = fileInfo[0]
+        fileDescription = fileInfo[1]
+
+        # Add entry to our files table
+        fileEntry = (fileName, connectionAddress)
+        filesTable[fileEntry] = fileDescription
+
+        debugString += "".join(["\n - ", fileName, "\n", "   - Description: \"", fileDescription, "\""])
+    
+    debugString += "\n"
+    print(debugString)
+
+# Send a file to a given user
 def Retrieve(connection, commandArgs):
     connectionAddress = connection[1]
     connectionSocket = connection[0]
@@ -71,7 +116,7 @@ def Retrieve(connection, commandArgs):
     fileItself.close()
     return
 
-
+# Receive & save a file that was sent to us
 def Store(connection, commandArgs):
     global bufferSize
 
@@ -109,20 +154,20 @@ def Store(connection, commandArgs):
     print("[", connectionAddress, "] Successfully downloaded and saved: ", commandArgs[1])
     return
 
-
+# End a connection with a specific user
 def ShutdownConnection(connection):
     global activeConnections
     connectionAddress = connection[1]
     connectionSocket = connection[0]
 
     print("[", connectionAddress, "] Ending Connection")
+    usersTable.pop(connectionAddress)
 
-    # # For every send from one device, we need to have another device listening otherwise the program will hang
-    # connectionSocket.send(b"Thank you for connecting")
+    # For every send from one device, we need to have another device listening otherwise the program will hang
     connectionSocket.close()
     activeConnections.remove(connection)
 
-
+# End all connections and shutdown the server
 def ShutdownServer():
     global activeConnections
     global queueShutdown
@@ -132,20 +177,30 @@ def ShutdownServer():
     queueShutdown = True
     return
 
-
+# Manage the connect/commands from a specific connection
 async def ManageConnection(connection):
+    global bufferSize
+    
     connectionAddress = connection[1]
     connectionSocket = connection[0]
     print("[", connectionAddress, "] Received Connection")
+    usersTable[connectionAddress] = None
+
+    # Get the files available on the user's system
+    RefreshUser(connection, "REFRESH_USER_FILES")
 
     while True:
-        data = connectionSocket.recv(1024)
+        print("[", connectionAddress, "]", "Listening for commands")
+        data = connectionSocket.recv(bufferSize)
         commandGiven = data.decode("UTF-8")
         commandArgs = commandGiven.split()
 
         print("[", connectionAddress, "] Received Command: ", commandGiven)
 
-        if(len(commandArgs) == 1 and commandArgs[0].upper() == "LIST"):
+        if(len(commandArgs) == 1 and commandArgs[0].upper() == "REFRESH_USER_FILES"):
+            RefreshUser(connection, commandArgs)
+            continue
+        elif(len(commandArgs) == 1 and commandArgs[0].upper() == "LIST"):
             List(connection, commandArgs)
             continue
         elif(len(commandArgs) == 2 and commandArgs[0].upper() == "RETRIEVE"):
@@ -188,7 +243,7 @@ def Main():
     # Wait for new connections
     while True:
         # print("Number of Connections: ", numConnections)
-        # [connectionSocket, connectionAddress]
+        # Tupleboi is this ->     [connectionSocket, connectionAddress]
         print("Awaiting Connection")
         if not queueShutdown:
             tupleboi = openSocket.accept()
