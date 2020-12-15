@@ -40,6 +40,14 @@ def Connect(address, port: int):
             raise ConnectionRefusedError
         else:
             print("\nSuccessfully connected to\nAddress: ", address, "\tPort: ", int(port))
+        
+        username = input("Username: ")
+        socketObject.send(username.encode("utf-8"))
+        hostname = socket.gethostname()
+        socketObject.send(hostname.encode("utf-8"))
+        connectionSpeed = input("Connection Speed: ")
+        socketObject.send(connectionSpeed.encode("utf-8"))
+
         connected = True
 
     except ConnectionRefusedError:
@@ -105,10 +113,13 @@ def RefreshServer(commandArgs=[]):
     if(not commandArgs):
         command = " "
         socketObject.send(command.join(commandArgs).encode("UTF-8"))
+    
+    # Give ourselves some space
+    print("\n")
 
     # Gather descriptions for each file we have, and tell the server about them
     for fileFound in os.listdir("."):
-        descriptionPrompt = "".join(["\nDescription [", fileFound, "]: "])
+        descriptionPrompt = "".join(["Description [", fileFound, "]: "])
         fileDescription = input(descriptionPrompt)
         payload = "|".join([fileFound, fileDescription])
         socketObject.send(payload.encode("UTF-8"))
