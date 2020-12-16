@@ -9,8 +9,8 @@ Notes
 
 socket.gethostname() gets the current machines hostname, for example "DESKTOP-1337PBJ"
 
-string.encode('UTF-8') encodes the given string into a 'bytes' literal object using the utf-8 standard that is required
-bytes.decode("utf-8") decodes some 'bytes' literal object using the utf-8 standard that information gets sent over the internet in
+string.encode('UTF-8') encodes the given string into a 'bytes' literal object using the UTF-8 standard that is required
+bytes.decode("UTF-8") decodes some 'bytes' literal object using the UTF-8 standard that information gets sent over the internet in
 
 all the b'string here' are converting a string into binary format. Hence the B
 
@@ -24,6 +24,33 @@ socketObject = socket.socket()              # Create a socket object
 bufferSize = 1024
 
 
+def SendPayload(socketBoi, toSend: str):
+    payload = "".join([toSend, "\0"])
+    socketBoi.send(payload.encode("UTF-8"))
+def RecvPayload(socketBoi):
+    global bufferSize
+
+    returnString = ""
+    reachedEOF = False
+
+    while not reachedEOF:
+        # Receiving data in 1 KB chunks
+        data = socketBoi.recv(bufferSize)
+        if(not data):
+            reachedEOF = True
+            break
+
+        # If there was no data in the latest chunk, then break out of our loop
+        decodedString = data.decode("UTF-8")
+        if(len(decodedString) >= 2 and decodedString[len(decodedString) - 1: len(decodedString)] == "\0"):
+            reachedEOF = True
+            decodedString = decodedString[0:len(decodedString) - 1]
+
+        returnString += decodedString
+    
+    return returnString
+
+# Connect to a central server
 def Connect(address, port: int):
     global connected
     global socketObject
@@ -32,14 +59,47 @@ def Connect(address, port: int):
     try:
         socketObject.connect((address, int(port)))
 
-        data = socketObject.recv(bufferSize)
-        connectionStatus = data.decode("UTF-8")
-
+        # data = socketObject.recv(bufferSize)
+        # connectionStatus = data.decode("UTF-8")
+        connectionStatus = RecvPayload(socketObject)
+        
         # Make sure we were accepted (server hasn't hit limit)
         if(int(connectionStatus) != 200):
+            print("Connection Refused")
             raise ConnectionRefusedError
         else:
-            print("\nSuccessfully connected to\nAddress: ", address, "\tPort: ", int(port))
+            print("Connection Accepted")
+            print("\nSuccessfully connected to [", address, ":", int(port), "]")
+        
+        usernameAccepted = False
+        while(not usernameAccepted):
+            username = input("Username: ")
+            SendPayload(socketObject, username)
+            response = RecvPayload(socketObject)
+            if(response == "200"):
+                usernameAccepted = True
+                break
+            else:
+                print("Username not accepted. Please try another")
+
+        hostNameAccepted = False
+        while(not hostNameAccepted):
+            hostname = socket.gethostname()
+            SendPayload(socketObject, hostname)
+            response = RecvPayload(socketObject)
+            if(response == "200"):
+                hostNameAccepted = True
+                break
+        
+        connectionSpeedAccepted = False
+        while(not connectionSpeedAccepted):
+            connectionSpeed = input("Connection Speed: ")
+            SendPayload(socketObject, connectionSpeed)
+            response = RecvPayload(socketObject)
+            if(response == "200"):
+                hostNameAccepted = True
+                break
+
         connected = True
 
     except ConnectionRefusedError:
@@ -56,8 +116,9 @@ def Disconnect(commandArgs):
     global connected
     global socketObject
     try:
-        command = " "
-        socketObject.send(command.join(commandArgs).encode("UTF-8"))
+        # command = " "
+        # socketObject.send(command.join(commandArgs).encode("UTF-8"))
+        SendPayload(socketObject, " ".join(commandArgs))
 
         socketObject.close()
         socketObject = socket.socket()
@@ -72,8 +133,9 @@ def List(commandArgs):
     global socketObject
     global bufferSize
 
-    command = " "
-    socketObject.send(command.join(commandArgs).encode("UTF-8"))
+    # command = " "
+    # socketObject.send(command.join(commandArgs).encode("UTF-8"))
+    SendPayload(socketObject, " ".join(commandArgs))
 
     # Receiving List of Strings
     listOutput = ""
@@ -81,45 +143,73 @@ def List(commandArgs):
 
     while not reachedEOF:
         # Receiving data in 1 KB chunks
-        data = socketObject.recv(bufferSize)
-        if(not data):
-            break
+        data = RecvPayload(socketObject)
 
-        # If there was no data in the latest chunk, then break out of our loop
-        decodedString = data.decode("utf-8")
-        if(len(decodedString) >= 2 and decodedString[len(decodedString) - 1: len(decodedString)] == "\0"):
+        # Check of the data is a signifier of the end of transmission
+        responseCode = 0
+        try:
+            responseCode = int(data)
+        except:
+            responseCode = 0
+        if(not data or data == "" or responseCode == 205):
             reachedEOF = True
-            decodedString = decodedString[0:len(decodedString) - 1]
-
-        listOutput += data.decode("utf-8")
-        # print("Data Received: ", data.decode("utf-8"))
+            break
+        
+        # Not the end of the transmission
+        listOutput += data
+        # Send confirmation that we received, back to the server
+        SendPayload(socketObject, "201")
 
     print(listOutput)
-
     return
 
 # Send our available files to the central server
-def RefreshServer(commandArgs):
-    # Send the server info about what files we have
-    socketObject.send(b"\nFiles from User: \n")
+def RefreshServer(commandArgs=[]):
+
+    # If this is the initial connection, we don't need to inform the Server we're sending files, as it's already expecting them
+    if(commandArgs):
+        SendPayload(socketObject, " ".join(commandArgs))
+    
+    print("\nPlease give descriptions for all files in the current directory, one file at a time")
+
+    # Gather descriptions for each file we have, and tell the server about them
     for fileFound in os.listdir("."):
-        joiner = ""
-        toSend = joiner.join([" - ", fileFound, "\n"])
-        # print(toSend)
-        socketObject.send(toSend.encode("UTF-8"))
-    socketObject.send(b"\0")
+        responseCode = 0
+        
+        # Keep looping as long as the server hasn't confirmed this file
+        while(responseCode != 201):
+            # Ask user for file description
+            descriptionPrompt = ""
+            if(responseCode == 301):
+                descriptionPrompt = "".join(["Something went wrong on the server. Please try again.\n", "Description [", fileFound, "]: "])
+            else:
+                descriptionPrompt = "".join(["Description [", fileFound, "]: "])
+            fileDescription = input(descriptionPrompt)
+            payload = "|".join([fileFound, fileDescription])
+
+            # Send that info to the server
+            SendPayload(socketObject, payload)
+            # Wait for servers acceptance code (success or failure)
+            response = RecvPayload(socketObject)
+            responseCode = int(response)
+
+    # Tell the server we're done
+    SendPayload(socketObject, "205")
 
 # Ask server to retrieve a requested file
 def Retrieve(commandArgs):
     global socketObject
     global bufferSize
 
-    command = " "
-    socketObject.send(command.join(commandArgs).encode("UTF-8"))
+    # command = " "
+    # socketObject.send(command.join(commandArgs).encode("UTF-8"))
+    SendPayload(socketObject, " ".join(commandArgs))
 
     # First listen for status code
-    statusData = socketObject.recv(1024)
-    statusCode = statusData.decode("UTF-8")
+    # statusData = socketObject.recv(bufferSize)
+    # statusCode = statusData.decode("UTF-8")
+    statusCode = "300"
+    statusCode = RecvPayload(socketObject)
     if(int(statusCode) == 300):
         print("File does not exist")
         return
@@ -127,13 +217,14 @@ def Retrieve(commandArgs):
         print("Error in downloading file")
         return
 
+    # Prepping a fileStream for us to write into
     try:
-        joiner = ""
         receivedFile = open(commandArgs[1], 'wb')
     except:
         print("Error in downloading file")
         return
 
+    # Reading the file in from the server
     reachedEOF = False
 
     while not reachedEOF:
@@ -171,39 +262,42 @@ def Store(commandArgs):
         print("Failed to open file: ", fileName)
         return
 
-    command = " "
-    socketObject.send(command.join(commandArgs).encode("UTF-8"))
+    # command = " "
+    # socketObject.send(command.join(commandArgs).encode("UTF-8"))
+    SendPayload(socketObject, " ".join(commandArgs))
 
     # Breaking the file down into smaller data chunks
     fileInBytes = fileItself.read(bufferSize)
-
     while fileInBytes:
         socketObject.send(fileInBytes)
 
         # Reading in the next chunk of data
         fileInBytes = fileItself.read(bufferSize)
+    fileItself.close()
 
     print("Sent: ", commandArgs[1])
 
     # Let the client know we're done sending the file
-    socketObject.send(b"\0")
-    fileItself.close()
+    SendPayload(socketObject, "205")
     return
 
 # Shutdown the server
 def Shutdown_Server(commandArgs):
     global socketObject
 
-    command = " "
-    socketObject.send(command.join(commandArgs).encode("UTF-8"))
+    # command = " "
+    # socketObject.send(command.join(commandArgs).encode("UTF-8"))
+    SendPayload(socketObject, " ".join(commandArgs))
     return
 
 
 def Main():
+    global connected
     print("You must first connect to a server before issuing any commands.")
 
     while True:
-        userInput = input("\nEnter Command: ")
+        print("\n-----------------------------\n")
+        userInput = input("Enter Command: ")
         commandArgs = userInput.split()
         commandGiven = commandArgs[0]
 
@@ -211,17 +305,27 @@ def Main():
             if connected:
                 Disconnect(commandArgs)
                 Connect(commandArgs[1], commandArgs[2])
-                RefreshServer(commandArgs)
+                if(connected):
+                    RefreshServer()
+                    print("\nReady to interact with Server")
             else:
                 Connect(commandArgs[1], commandArgs[2])
-                RefreshServer(commandArgs)
+                if(connected):
+                    RefreshServer()
+                    print("\nReady to interact with Server")
             continue
         else:
             if not connected:
                 print("You must first connect to a server before issuing any commands.")
                 continue
 
-        if(commandGiven.upper() == "LIST" and len(commandArgs) == 1):
+        if(commandGiven.upper() == "REFRESH_USER_FILES" and len(commandArgs) == 1):
+            RefreshServer(commandArgs)
+            continue
+        elif(commandGiven.upper() == "LIST" and len(commandArgs) == 1):
+            List(commandArgs)
+            continue
+        elif(commandGiven.upper() == "SEARCH" and len(commandArgs) == 2):
             List(commandArgs)
             continue
         elif(commandGiven.upper() == "RETRIEVE" and len(commandArgs) == 2):
@@ -242,12 +346,6 @@ def Main():
         else:
             print("Invalid Command. Please try again.")
             continue
-
-        # socketObject.send(userInput.encode('UTF-8'))
-
-        # socketObject.close()
-        # print("Connection with Server Closed")
-
 
 Main()
 print("Program Closing")
