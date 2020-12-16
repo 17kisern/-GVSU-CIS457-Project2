@@ -1,6 +1,7 @@
 import os
 from os import path
 import socket                               # Import socket module
+import asyncio
 
 """
 
@@ -18,16 +19,21 @@ all the b'string here' are converting a string into binary format. Hence the B
 
 connected = False
 socketObject = socket.socket()              # Create a socket object
+responseBuffer = []
+bufferSize = 1024
 # host = socket.gethostname()
 # host = "localhost"                          # Get local machine name
 # port = 60000                                # Reserve a port for your service.
-bufferSize = 1024
 
 
 def SendPayload(socketBoi, toSend: str):
     payload = "".join([toSend, "\0"])
     socketBoi.send(payload.encode("UTF-8"))
 def RecvPayload(socketBoi):
+    # If we have shit in our respnse buffer, just use that
+    if(len(responseBuffer) > 0):
+        return responseBuffer.pop(0)
+
     global bufferSize
 
     returnString = ""
@@ -48,7 +54,13 @@ def RecvPayload(socketBoi):
 
         returnString += decodedString
     
-    return returnString
+    # In case we received multiple responses, split everything on our EOT notifier (NULL \0), and cache into our response buffer
+    response = returnString.split("\0")
+    for entry in response:
+        responseBuffer.append(entry)
+    
+    # Return the 0th index in the response buffer, and remove it from the response buffer
+    return responseBuffer.pop(0)
 
 # Connect to a central server
 def Connect(address, port: int):
@@ -133,8 +145,6 @@ def List(commandArgs):
     global socketObject
     global bufferSize
 
-    # command = " "
-    # socketObject.send(command.join(commandArgs).encode("UTF-8"))
     SendPayload(socketObject, " ".join(commandArgs))
 
     # Receiving List of Strings
@@ -191,7 +201,10 @@ def RefreshServer(commandArgs=[]):
             SendPayload(socketObject, payload)
             # Wait for servers acceptance code (success or failure)
             response = RecvPayload(socketObject)
-            responseCode = int(response)
+            try:
+                responseCode = int(response)
+            except:
+                print("Errored out with response/Code:", response)
 
     # Tell the server we're done
     SendPayload(socketObject, "205")
