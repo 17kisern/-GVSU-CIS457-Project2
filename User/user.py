@@ -64,11 +64,12 @@ def Connect(address, port: int):
         connectionStatus = RecvPayload(socketObject)
         
         # Make sure we were accepted (server hasn't hit limit)
-        print("ConnectionStatus: ", connectionStatus)
         if(int(connectionStatus) != 200):
+            print("Connection Refused")
             raise ConnectionRefusedError
         else:
-            print("\nSuccessfully connected to\nAddress: ", address, "\tPort: ", int(port))
+            print("Connection Accepted")
+            print("\nSuccessfully connected to [", address, ":", int(port), "]")
         
         usernameAccepted = False
         while(not usernameAccepted):
@@ -148,7 +149,6 @@ def List(commandArgs):
         responseCode = 0
         try:
             responseCode = int(data)
-            print("ResponseCode: ", str(responseCode))
         except:
             responseCode = 0
         if(not data or data == "" or responseCode == 205):
@@ -170,19 +170,20 @@ def RefreshServer(commandArgs=[]):
     if(commandArgs):
         SendPayload(socketObject, " ".join(commandArgs))
     
-    # Give ourselves some space
-    print("\n")
+    print("\nPlease give descriptions for all files in the current directory, one file at a time")
 
     # Gather descriptions for each file we have, and tell the server about them
     for fileFound in os.listdir("."):
         responseCode = 0
+        
+        # Keep looping as long as the server hasn't confirmed this file
         while(responseCode != 201):
+            # Ask user for file description
             descriptionPrompt = ""
             if(responseCode == 301):
                 descriptionPrompt = "".join(["Something went wrong on the server. Please try again.\n", "Description [", fileFound, "]: "])
             else:
                 descriptionPrompt = "".join(["Description [", fileFound, "]: "])
-            # print(descriptionPrompt)
             fileDescription = input(descriptionPrompt)
             payload = "|".join([fileFound, fileDescription])
 
@@ -295,7 +296,8 @@ def Main():
     print("You must first connect to a server before issuing any commands.")
 
     while True:
-        userInput = input("\nEnter Command: ")
+        print("\n-----------------------------\n")
+        userInput = input("Enter Command: ")
         commandArgs = userInput.split()
         commandGiven = commandArgs[0]
 
@@ -305,10 +307,12 @@ def Main():
                 Connect(commandArgs[1], commandArgs[2])
                 if(connected):
                     RefreshServer()
+                    print("\nReady to interact with Server")
             else:
                 Connect(commandArgs[1], commandArgs[2])
                 if(connected):
                     RefreshServer()
+                    print("\nReady to interact with Server")
             continue
         else:
             if not connected:
@@ -342,7 +346,6 @@ def Main():
         else:
             print("Invalid Command. Please try again.")
             continue
-
 
 Main()
 print("Program Closing")

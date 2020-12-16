@@ -31,6 +31,10 @@ def SendPayload(socketBoi, toSend: str):
     payload = "".join([toSend, "\0"])
     socketBoi.send(payload.encode("UTF-8"))
 def RecvPayload(socketBoi):
+    # If we have shit in our respnse buffer, just use that
+    if(len(responseBuffer) > 0):
+        return responseBuffer.pop(0)
+
     global bufferSize
 
     returnString = ""
@@ -51,7 +55,13 @@ def RecvPayload(socketBoi):
 
         returnString += decodedString
     
-    return returnString
+    # In case we received multiple responses, split everything on our EOT notifier (NULL \0), and cache into our response buffer
+    response = returnString.split("\0")
+    for entry in response:
+        responseBuffer.append(entry)
+    
+    # Return the 0th index in the response buffer, and remove it from the response buffer
+    return responseBuffer.pop(0)
 
 
 # Send a list of all available files to a given user
