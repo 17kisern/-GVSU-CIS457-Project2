@@ -31,6 +31,10 @@ def SendPayload(socketBoi, toSend: str):
     payload = "".join([toSend, "\0"])
     socketBoi.send(payload.encode("UTF-8"))
 def RecvPayload(socketBoi):
+    # If we have shit in our respnse buffer, just use that
+    if(len(responseBuffer) > 0):
+        return responseBuffer.pop(0)
+
     global bufferSize
 
     returnString = ""
@@ -51,7 +55,13 @@ def RecvPayload(socketBoi):
 
         returnString += decodedString
     
-    return returnString
+    # In case we received multiple responses, split everything on our EOT notifier (NULL \0), and cache into our response buffer
+    response = returnString.split("\0")
+    for entry in response:
+        responseBuffer.append(entry)
+    
+    # Return the 0th index in the response buffer, and remove it from the response buffer
+    return responseBuffer.pop(0)
 
 
 # Send a list of all available files to a given user
@@ -61,24 +71,28 @@ def List(connection, commandArgs):
     connectionAddress = connection[1]
     connectionSocket = connection[0]
 
-    # connectionSocket.send(b"\nFiles on Server: \n")
     SendPayload(connectionSocket, "\nFiles on Server: \n")
+    while(int(RecvPayload(connectionSocket)) != 201):
+        print("[", connectionAddress, "]", "User failed to receive payload. Trying again.")
+        SendPayload(connectionSocket, "\nFiles on Server: \n")
 
     for fileEntry in filesTable:
 
         SendPayload(connectionSocket, "".join(["\n - ", fileEntry[0], "\n"]))
         while(int(RecvPayload(connectionSocket)) != 201):
+            print("[", connectionAddress, "]", "User failed to receive payload. Trying again.")
             SendPayload(connectionSocket, "".join(["\n - ", fileEntry[0], "\n"]))
         
         SendPayload(connectionSocket, "".join(["   - Host: ", fileEntry[1], "\n"]))
         while(int(RecvPayload(connectionSocket)) != 201):
+            print("[", connectionAddress, "]", "User failed to receive payload. Trying again.")
             SendPayload(connectionSocket, "".join(["   - Host: ", fileEntry[1], "\n"]))
         
         SendPayload(connectionSocket, "".join(["   - Description: \"", filesTable[fileEntry], "\""]))
         while(int(RecvPayload(connectionSocket)) != 201):
+            print("[", connectionAddress, "]", "User failed to receive payload. Trying again.")
             SendPayload(connectionSocket, "".join(["   - Description: \"", filesTable[fileEntry], "\""]))
 
-    # connectionSocket.send(b"\0")
     SendPayload(connectionSocket, "205")
     return
 
@@ -89,7 +103,6 @@ def Search(connection, commandArgs):
     connectionAddress = connection[1]
     connectionSocket = connection[0]
 
-    # connectionSocket.send(b"\nFiles on Server: \n")
     stringToSend = "".join(["\nFiles matching \"", commandArgs[1], "\": \n"])
     SendPayload(connectionSocket, stringToSend)
 
@@ -110,7 +123,6 @@ def Search(connection, commandArgs):
         while(int(RecvPayload(connectionSocket)) != 201):
             SendPayload(connectionSocket, "".join(["   - Description: \"", filesTable[fileEntry], "\""]))
 
-    # connectionSocket.send(b"\0")
     SendPayload(connectionSocket, "205")
     return
 
@@ -129,7 +141,6 @@ def RefreshUser(connection, username, commandArgs):
 
     while not reachedEOF:
         # Receiving data in 1 KB chunks
-        # data = connectionSocket.recv(bufferSize)
         data = RecvPayload(connectionSocket)
         transmissionEnded = False
         statusCode = 0
@@ -144,7 +155,6 @@ def RefreshUser(connection, username, commandArgs):
             break
 
         # If there was no data in the latest chunk, then break out of our loop
-        # decodedString = data.decode("UTF-8")
         decodedString = data
 
         # If this is our final payload, then make sure this is our last iteration of info
@@ -169,7 +179,7 @@ def RefreshUser(connection, username, commandArgs):
         debugString += "".join(["\n - ", fileName, "\n", "   - Host: ", username, "\n", "   - Description: \"", fileDescription, "\""])
 
         # Inform user that we successfully recorded that file
-        print("Sending 201")
+        print("[", connectionAddress, "]", "Received file info [", fileName, "]")
         SendPayload(connectionSocket, "201")
     
     print(debugString)
@@ -280,6 +290,7 @@ def ShutdownServer():
 
 # Manage the connect/commands from a specific connection
 async def ManageConnection(connection):
+    print("Inside ManageConnection")
     global bufferSize
     
     connectionAddress = connection[1]
@@ -379,7 +390,6 @@ async def ManageConnection(connection):
             SendPayload(connectionSocket, "Invalid Command. Please Try Again.")
             continue
 
-
 def Main():
     global activeConnections
     global bufferSize
@@ -402,15 +412,15 @@ def Main():
         print("Awaiting Connection")
         if not queueShutdown:
             tupleboi = openSocket.accept()
+
             if(len(usersTable) < maxConnections):
                 # Telling user they've been approved to connect
-                # tupleboi[0].send("200".encode("UTF-8"))
                 SendPayload(tupleboi[0], "200")
                 asyncio.run(ManageConnection(tupleboi))
             else:
                 SendPayload(tupleboi[0], "300")
-                # tupleboi[0].send("300".encode("UTF-8"))
         else:
+            print("Queueing Shutdown")
             break
 
 

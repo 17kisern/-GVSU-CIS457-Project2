@@ -12,6 +12,5 @@
     "python.formatting.autopep8Args": [
         "--max-line-length=400"
     ],
-    "python.pythonPath": "/home/stephen/.pyenv/versions/3.8.1/bin/python",
     "python.linting.pydocstyleEnabled": false
 }

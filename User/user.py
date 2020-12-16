@@ -1,6 +1,7 @@
 import os
 from os import path
 import socket                               # Import socket module
+import asyncio
 
 """
 
@@ -18,16 +19,21 @@ all the b'string here' are converting a string into binary format. Hence the B
 
 connected = False
 socketObject = socket.socket()              # Create a socket object
+responseBuffer = []
+bufferSize = 1024
 # host = socket.gethostname()
 # host = "localhost"                          # Get local machine name
 # port = 60000                                # Reserve a port for your service.
-bufferSize = 1024
 
 
 def SendPayload(socketBoi, toSend: str):
     payload = "".join([toSend, "\0"])
     socketBoi.send(payload.encode("UTF-8"))
 def RecvPayload(socketBoi):
+    # If we have shit in our respnse buffer, just use that
+    if(len(responseBuffer) > 0):
+        return responseBuffer.pop(0)
+
     global bufferSize
 
     returnString = ""
@@ -48,7 +54,13 @@ def RecvPayload(socketBoi):
 
         returnString += decodedString
     
-    return returnString
+    # In case we received multiple responses, split everything on our EOT notifier (NULL \0), and cache into our response buffer
+    response = returnString.split("\0")
+    for entry in response:
+        responseBuffer.append(entry)
+    
+    # Return the 0th index in the response buffer, and remove it from the response buffer
+    return responseBuffer.pop(0)
 
 # Connect to a central server
 def Connect(address, port: int):
@@ -64,11 +76,12 @@ def Connect(address, port: int):
         connectionStatus = RecvPayload(socketObject)
         
         # Make sure we were accepted (server hasn't hit limit)
-        print("ConnectionStatus: ", connectionStatus)
         if(int(connectionStatus) != 200):
+            print("Connection Refused")
             raise ConnectionRefusedError
         else:
-            print("\nSuccessfully connected to\nAddress: ", address, "\tPort: ", int(port))
+            print("Connection Accepted")
+            print("\nSuccessfully connected to [", address, ":", int(port), "]")
         
         usernameAccepted = False
         while(not usernameAccepted):
@@ -132,8 +145,6 @@ def List(commandArgs):
     global socketObject
     global bufferSize
 
-    # command = " "
-    # socketObject.send(command.join(commandArgs).encode("UTF-8"))
     SendPayload(socketObject, " ".join(commandArgs))
 
     # Receiving List of Strings
@@ -148,7 +159,6 @@ def List(commandArgs):
         responseCode = 0
         try:
             responseCode = int(data)
-            print("ResponseCode: ", str(responseCode))
         except:
             responseCode = 0
         if(not data or data == "" or responseCode == 205):
@@ -170,19 +180,20 @@ def RefreshServer(commandArgs=[]):
     if(commandArgs):
         SendPayload(socketObject, " ".join(commandArgs))
     
-    # Give ourselves some space
-    print("\n")
+    print("\nPlease give descriptions for all files in the current directory, one file at a time")
 
     # Gather descriptions for each file we have, and tell the server about them
     for fileFound in os.listdir("."):
         responseCode = 0
+        
+        # Keep looping as long as the server hasn't confirmed this file
         while(responseCode != 201):
+            # Ask user for file description
             descriptionPrompt = ""
             if(responseCode == 301):
                 descriptionPrompt = "".join(["Something went wrong on the server. Please try again.\n", "Description [", fileFound, "]: "])
             else:
                 descriptionPrompt = "".join(["Description [", fileFound, "]: "])
-            # print(descriptionPrompt)
             fileDescription = input(descriptionPrompt)
             payload = "|".join([fileFound, fileDescription])
 
@@ -190,7 +201,10 @@ def RefreshServer(commandArgs=[]):
             SendPayload(socketObject, payload)
             # Wait for servers acceptance code (success or failure)
             response = RecvPayload(socketObject)
-            responseCode = int(response)
+            try:
+                responseCode = int(response)
+            except:
+                print("Errored out with response/Code:", response)
 
     # Tell the server we're done
     SendPayload(socketObject, "205")
@@ -295,7 +309,8 @@ def Main():
     print("You must first connect to a server before issuing any commands.")
 
     while True:
-        userInput = input("\nEnter Command: ")
+        print("\n-----------------------------\n")
+        userInput = input("Enter Command: ")
         commandArgs = userInput.split()
         commandGiven = commandArgs[0]
 
@@ -305,10 +320,12 @@ def Main():
                 Connect(commandArgs[1], commandArgs[2])
                 if(connected):
                     RefreshServer()
+                    print("\nReady to interact with Server")
             else:
                 Connect(commandArgs[1], commandArgs[2])
                 if(connected):
                     RefreshServer()
+                    print("\nReady to interact with Server")
             continue
         else:
             if not connected:
@@ -342,7 +359,6 @@ def Main():
         else:
             print("Invalid Command. Please try again.")
             continue
-
 
 Main()
 print("Program Closing")
