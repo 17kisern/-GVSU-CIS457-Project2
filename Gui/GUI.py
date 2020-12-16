@@ -59,6 +59,8 @@ def connect_pressed():
     #call the connection function in user class
     if(server_ip != "" and port_number != ""):
         user.Connect(server_ip, port_number)
+    else:
+        print("You must provide both a valid IP Address and valid Port Number")
 
     #return the array 
     # print(CONNECTION_INFORMATION)
