@@ -82,6 +82,38 @@ def List(connection, commandArgs):
     SendPayload(connectionSocket, "205")
     return
 
+# Send a list of specific keymatching files to a given user
+def Search(connection, commandArgs):
+    global bufferSize
+
+    connectionAddress = connection[1]
+    connectionSocket = connection[0]
+
+    # connectionSocket.send(b"\nFiles on Server: \n")
+    stringToSend = "".join(["\nFiles matching \"", commandArgs[1], "\": \n"])
+    SendPayload(connectionSocket, stringToSend)
+
+    for fileEntry in filesTable:
+        # If file doesn't match our keyword, then it's skipped
+        if(commandArgs[1] not in filesTable[fileEntry]):
+            continue
+
+        SendPayload(connectionSocket, "".join(["\n - ", fileEntry[0], "\n"]))
+        while(int(RecvPayload(connectionSocket)) != 201):
+            SendPayload(connectionSocket, "".join(["\n - ", fileEntry[0], "\n"]))
+        
+        SendPayload(connectionSocket, "".join(["   - Host: ", fileEntry[1], "\n"]))
+        while(int(RecvPayload(connectionSocket)) != 201):
+            SendPayload(connectionSocket, "".join(["   - Host: ", fileEntry[1], "\n"]))
+        
+        SendPayload(connectionSocket, "".join(["   - Description: \"", filesTable[fileEntry], "\""]))
+        while(int(RecvPayload(connectionSocket)) != 201):
+            SendPayload(connectionSocket, "".join(["   - Description: \"", filesTable[fileEntry], "\""]))
+
+    # connectionSocket.send(b"\0")
+    SendPayload(connectionSocket, "205")
+    return
+
 # Receives a list of all the available files associated with a given user
 def RefreshUser(connection, username, commandArgs):
     global bufferSize
@@ -321,6 +353,9 @@ async def ManageConnection(connection):
             continue
         elif(len(commandArgs) == 1 and commandArgs[0].upper() == "LIST"):
             List(connection, commandArgs)
+            continue
+        elif(len(commandArgs) == 2 and commandArgs[0].upper() == "SEARCH"):
+            Search(connection, commandArgs)
             continue
         elif(len(commandArgs) == 2 and commandArgs[0].upper() == "RETRIEVE"):
             Retrieve(connection, commandArgs)
