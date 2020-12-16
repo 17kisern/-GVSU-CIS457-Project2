@@ -1,4 +1,11 @@
+import os
+import sys
 import tkinter as tk
+currentdir = os.path.dirname(os.path.realpath(__file__))
+parentdir = os.path.dirname(currentdir)
+sys.path.append(parentdir)
+from User import user
+from Server import server
 
 search_results = []
 # Places window in the center of user's screen
