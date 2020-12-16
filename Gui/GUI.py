@@ -5,7 +5,6 @@ currentdir = os.path.dirname(os.path.realpath(__file__))
 parentdir = os.path.dirname(currentdir)
 sys.path.append(parentdir)
 from User import user
-from Server import server
 
 search_results = []
 # Places window in the center of user's screen
@@ -57,19 +56,19 @@ def connect_pressed():
         speed
     ]
 
-    CALL_CONNECT = [
-        "connect",
-        server_ip,
-        port_number
-    ]
-
     #call the connection function in user class
+    if(server_ip != "" and port_number != ""):
+        user.Connect(server_ip, port_number)
 
     #return the array 
-    print(CONNECTION_INFORMATION)
+    # print(CONNECTION_INFORMATION)
     return CONNECTION_INFORMATION
 
 def search_pressed():
+    if(not user.connected):
+        print("You must first connect to a server")
+        return
+
     x = keyword_search_text.get("1.0", 'end-1c')
 
     #call search function
@@ -134,9 +133,5 @@ keyword_search_text.grid(row=5, column=1)
 
 #Search Button
 search_button = tk.Button(window, text="Search", command=search_pressed, bg="white", activeforeground="gray", activebackground="dark gray").grid(row=5, column=3)
-
-
-
-
 
 window.mainloop()

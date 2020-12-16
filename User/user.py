@@ -2,6 +2,7 @@ import os
 from os import path
 import socket                               # Import socket module
 import asyncio
+import sys
 
 """
 
@@ -119,7 +120,7 @@ def Connect(address, port: int):
         socketObject = socket.socket()
         connected = False
     except:
-        print("\nFailed to connect to\nAddress: ", address, "\tPort: ", int(port), "\nPlease Try Again")
+        print("\nFailed to connect to [", address, ":", int(port), "]\nPlease Try Again")
         socketObject = socket.socket()
         connected = False
 
@@ -214,13 +215,9 @@ def Retrieve(commandArgs):
     global socketObject
     global bufferSize
 
-    # command = " "
-    # socketObject.send(command.join(commandArgs).encode("UTF-8"))
     SendPayload(socketObject, " ".join(commandArgs))
 
     # First listen for status code
-    # statusData = socketObject.recv(bufferSize)
-    # statusCode = statusData.decode("UTF-8")
     statusCode = "300"
     statusCode = RecvPayload(socketObject)
     if(int(statusCode) == 300):
@@ -298,17 +295,24 @@ def Store(commandArgs):
 def Shutdown_Server(commandArgs):
     global socketObject
 
-    # command = " "
-    # socketObject.send(command.join(commandArgs).encode("UTF-8"))
     SendPayload(socketObject, " ".join(commandArgs))
     return
 
-
 def Main():
     global connected
-    print("You must first connect to a server before issuing any commands.")
+    print("Would you like to operate with command line or GUI?")
+    print(" - [0] Command Line")
+    print(" - [1] GUI")
+    userResponse = input("Interface: ")
 
-    while True:
+    if(userResponse == "0"):
+        print("\nYou have selected Command Line")
+    else:
+        print("\nLaunching GUI")
+
+    print("\nYou must first connect to a server before issuing any commands.")
+
+    while userResponse == "0":
         print("\n-----------------------------\n")
         userInput = input("Enter Command: ")
         commandArgs = userInput.split()
@@ -361,4 +365,3 @@ def Main():
             continue
 
 Main()
-print("Program Closing")
