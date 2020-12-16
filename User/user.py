@@ -321,6 +321,9 @@ def Main():
         elif(commandGiven.upper() == "LIST" and len(commandArgs) == 1):
             List(commandArgs)
             continue
+        elif(commandGiven.upper() == "SEARCH" and len(commandArgs) == 2):
+            List(commandArgs)
+            continue
         elif(commandGiven.upper() == "RETRIEVE" and len(commandArgs) == 2):
             Retrieve(commandArgs)
             continue
