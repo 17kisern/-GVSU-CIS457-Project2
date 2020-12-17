@@ -58,12 +58,11 @@ def connect_pressed():
 
     #call the connection function in user class
     if(server_ip != "" and port_number != ""):
-        user.Connect(server_ip, port_number)
+        user.ConnectGUI(server_ip, port_number, username)
     else:
         print("You must provide both a valid IP Address and valid Port Number")
 
     #return the array 
-    # print(CONNECTION_INFORMATION)
     return CONNECTION_INFORMATION
 
 def search_pressed():
@@ -71,11 +70,13 @@ def search_pressed():
         print("You must first connect to a server")
         return
 
-    x = keyword_search_text.get("1.0", 'end-1c')
+    keywordText = keyword_search_text.get("1.0", 'end-1c')
 
     #call search function
+    user.Search(["Search", keywordText])
+
     #call function to populate table
-    return x
+    return keywordText
 
 #list that is updated with information from search
 def update_search_results(list):

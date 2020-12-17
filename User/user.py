@@ -64,7 +64,7 @@ def RecvPayload(socketBoi):
     return responseBuffer.pop(0)
 
 # Connect to a central server
-def Connect(address, port: int):
+def Connect(address, port: int, usernameOverride=""):
     global connected
     global socketObject
     global bufferSize
@@ -86,7 +86,10 @@ def Connect(address, port: int):
         
         usernameAccepted = False
         while(not usernameAccepted):
-            username = input("Username: ")
+            if(usernameOverride == ""):
+                username = input("Username: ")
+            else:
+                username = usernameOverride
             SendPayload(socketObject, username)
             response = RecvPayload(socketObject)
             if(response == "200"):
@@ -123,14 +126,25 @@ def Connect(address, port: int):
         print("\nFailed to connect to [", address, ":", int(port), "]\nPlease Try Again")
         socketObject = socket.socket()
         connected = False
+def ConnectGUI(address, port: int, usernameOverride=""):
+    global connected
+    if connected:
+        Disconnect(["connect", address, port])
+        Connect(address, port, usernameOverride)
+        if(connected):
+            RefreshServer()
+            print("\nReady to interact with Server")
+    else:
+        Connect(address, port, usernameOverride)
+        if(connected):
+            RefreshServer()
+            print("\nReady to interact with Server")
 
 # Disconnect from the central server
 def Disconnect(commandArgs):
     global connected
     global socketObject
     try:
-        # command = " "
-        # socketObject.send(command.join(commandArgs).encode("UTF-8"))
         SendPayload(socketObject, " ".join(commandArgs))
 
         socketObject.close()
@@ -173,6 +187,8 @@ def List(commandArgs):
 
     print(listOutput)
     return
+def Search(commandArgs):
+    List(commandArgs)
 
 # Send our available files to the central server
 def RefreshServer(commandArgs=[]):
